@@ -14,30 +14,27 @@ namespace SocketClient
         private static readonly ManualResetEvent ConnectReset = new ManualResetEvent(false);
         private static readonly ManualResetEvent SendReset = new ManualResetEvent(false);
 
-        private static void Start()
+        private static void StartClient()
         {
             try
             {
-                IPHostEntry ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
-                IPAddress ipAddress = ipHostInfo.AddressList[0];
-                IPEndPoint remoteEp = new IPEndPoint(ipAddress, Port);
+                var hostName = Dns.GetHostEntry(Dns.GetHostName());
+                var ipAddress = hostName.AddressList[0];
+                var ipAddressAndPort = new IPEndPoint(ipAddress, Port);
 
-                Socket client = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                var clientSocket = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
-                client.BeginConnect(remoteEp, ConnectCallback, client);
+                clientSocket.BeginConnect(ipAddressAndPort, ConnectCallback, clientSocket);
                 ConnectReset.WaitOne();
 
                 var iteration = 0;
                 while (true)
                 {
-                    Send(client, $"Hello! This is packet {iteration}");
+                    SendMessage(clientSocket, $"Hello! This is packet {iteration}");
                     SendReset.WaitOne();
                     iteration++;
                     Thread.Sleep(5000);
                 }
-
-                //client.Shutdown(SocketShutdown.Both);
-                //client.Close();
             }
             catch (Exception exception)
             {
@@ -49,10 +46,10 @@ namespace SocketClient
         {
             try
             {
-                Socket client = (Socket) asyncResult.AsyncState;
+                var clientSocket = (Socket) asyncResult.AsyncState;
 
-                client.EndConnect(asyncResult);
-                Console.WriteLine("Socket connected to {0}", client.RemoteEndPoint);
+                clientSocket.EndConnect(asyncResult);
+                Console.WriteLine("Socket connected to {0}", clientSocket.RemoteEndPoint);
 
                 ConnectReset.Set();
             }
@@ -62,23 +59,22 @@ namespace SocketClient
             }
         }
 
-        private static void Send(Socket client, string message)
+        private static void SendMessage(Socket client, string message)
         {
-            byte[] byteData = Encoding.ASCII.GetBytes(message);
+            var byteData = Encoding.ASCII.GetBytes(message);
 
             Console.WriteLine($"Sent message : {message}");
             client.BeginSend(byteData, 0, byteData.Length, 0, SendCallback, client);
         }
 
 
-        private static void SendCallback(IAsyncResult ar)
+        private static void SendCallback(IAsyncResult asyncResult)
         {
             try
             {
-                Socket client = (Socket) ar.AsyncState;
-
-                int bytesSent = client.EndSend(ar);
-                Console.WriteLine($"Size : {bytesSent} bytes \n");
+                var client = (Socket) asyncResult.AsyncState;
+                var messageByteSize = client.EndSend(asyncResult);
+                Console.WriteLine($"Size : {messageByteSize} bytes \n");
 
                 SendReset.Set();
             }
@@ -90,7 +86,7 @@ namespace SocketClient
 
         public static int Main()
         {
-            Start();
+            StartClient();
             return 0;
         }
     }
